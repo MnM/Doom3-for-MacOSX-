@@ -238,7 +238,7 @@ extern void CL_Quit_f(void);
 
 - (void)quakeMain
 {
-    NSAutoreleasePool *pool;
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     int argc = 0;
     const char *argv[MAX_ARGC];
     NSProcessInfo *processInfo;
@@ -247,8 +247,6 @@ extern void CL_Quit_f(void);
     //const char *cddir;
     //NSFileManager *defaultManager;
     //bool tryAgain;
-
-    pool = [[NSAutoreleasePool alloc] init];
 
     [NSApp setServicesProvider:self];
 
@@ -316,8 +314,6 @@ extern void CL_Quit_f(void);
     }
 */
 
-	//Sys_FPU_EnableExceptions( TEST_FPU_EXCEPTIONS );
-
 	Posix_EarlyInit( );
 
 #ifndef _DEBUG
@@ -328,6 +324,8 @@ extern void CL_Quit_f(void);
 	if ( [self checkDVD] == FALSE) {
 		common->Quit();
 	}
+#else
+    Sys_FPU_EnableExceptions( TEST_FPU_EXCEPTIONS );
 #endif
 	
 	// need strncmp, can't use idlib before init
@@ -342,22 +340,14 @@ extern void CL_Quit_f(void);
 
 	Posix_LateInit( );
 
-    [NSApp activateIgnoringOtherApps:YES];
-
     while (1) {
 #ifdef OMNI_TIMER
         OTPeriodicTimerReset();
         OTNodeStart(RootNode);
 #endif
 
-		// maintain exceptions in case system calls are turning them off (is that needed)
-		//Sys_FPU_EnableExceptions( TEST_FPU_EXCEPTIONS );
-
 		common->Frame();
 
-        // We should think about doing this less frequently than every frame
-        [pool release];
-        pool = [[NSAutoreleasePool alloc] init];
 #ifdef OMNI_TIMER
         OTNodeStop(RootNode);
 #endif
@@ -733,28 +723,7 @@ returns in megabytes
 ================
 */
 int Sys_GetVideoRam( void ) {
-	unsigned int i;
-	CFTypeRef typeCode;
-	long vramStorage = 64;
-	const short MAXDISPLAYS = 8;
-	CGDisplayCount displayCount;
-	io_service_t dspPorts[MAXDISPLAYS];
-	CGDirectDisplayID displays[MAXDISPLAYS];
-
-	CGGetOnlineDisplayList( MAXDISPLAYS, displays, &displayCount );
-	
-	for ( i = 0; i < displayCount; i++ ) {
-		if ( Sys_DisplayToUse() == displays[i] ) {
-			dspPorts[i] = CGDisplayIOServicePort(displays[i]);
-			typeCode = IORegistryEntryCreateCFProperty( dspPorts[i], CFSTR("IOFBMemorySize"), kCFAllocatorDefault, kNilOptions );
-			if( typeCode && CFGetTypeID( typeCode ) == CFNumberGetTypeID() ) {
-				CFNumberGetValue( ( CFNumberRef )typeCode, kCFNumberSInt32Type, &vramStorage );
-				vramStorage /= (1024*1024);
-			}
-		}
-	}
-
-	return vramStorage;
+	return Sys_QueryVideoMemory() / (1024 * 1024);
 }
 
 bool OSX_GetCPUIdentification( int& cpuId, bool& oldArchitecture )

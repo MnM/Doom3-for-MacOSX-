@@ -386,29 +386,41 @@ void processEvent( NSEvent *event ) {
 	eventType = [ event type ];
 
 	switch ( eventType ) {
-		// These four event types are ignored since we do all of our mouse down/up process via the uber-mouse system defined event.	 We have to accept these events however since they get enqueued and the queue will fill up if we don't.
+		// These six event types are ignored since we do all of our mouse down/up process via the uber-mouse system defined event.	 We have to accept these events however since they get enqueued and the queue will fill up if we don't.
 	case NSLeftMouseDown:
 	case NSLeftMouseUp:
-	case NSRightMouseDown:
-	case NSRightMouseUp:
-		//NSLog( @"ignore simple mouse event %@", event );
-		return;		
+        if ( !mouseActive ) {
+            NSRect contentFrame = [[[event window] contentView] frame];
+
+            if ( [event locationInWindow].y > contentFrame.size.height ) {
+                // user clicked onto the titlebar, doing nothing
+            } else {
+                NSLog( @"Clicked into the application window, capturing mouse." );
+                Sys_DefaultWindowLevel();
+                IN_ActivateMouse();
+            }
+        }
+    case NSRightMouseDown:
+    case NSRightMouseUp:
+    case NSOtherMouseDown:
+    case NSOtherMouseUp:
+        return;
 	case NSMouseMoved:
 	case NSLeftMouseDragged:
 	case NSRightMouseDragged:
 		processMouseMovedEvent( event );
 		return;
 	case NSKeyDown:
-		// Send ALL command key-ups to Quake, but not command key-downs, otherwise if the user hits a key, presses command, and lets up on the key, the key-up won't register.
-		if ( [ event modifierFlags ] & NSCommandKeyMask ) {
-			NSLog( @"command key up ignored: %@", event );
-			break;
-		}
 	case NSKeyUp:
 		OSX_ProcessKeyEvent( event, eventType == NSKeyDown );
 		return;
 	case NSFlagsChanged:
-		processFlagsChangedEvent( event );
+        if ( [ event modifierFlags ] & NSCommandKeyMask ) {
+            Sys_ReduceWindowLevel();
+            IN_DeactivateMouse();
+        } else {
+            processFlagsChangedEvent( event );
+        }
 		return;
 	case NSSystemDefined:
 		processSystemDefinedEvent( event );
@@ -459,6 +471,8 @@ void Sys_PreventMouseMovement( CGPoint point ) {
     if ( err != CGEventNoErr ) {
         common->Error( "Could not disable mouse movement, CGWarpMouseCursorPosition returned %d\n", err );
     }
+
+    CGDisplayHideCursor( kCGDirectMainDisplay );
 }
 
 void Sys_ReenableMouseMovement() {
@@ -471,6 +485,7 @@ void Sys_ReenableMouseMovement() {
     }
 
     // Leave the mouse where it was -- don't warp here.
+    CGDisplayShowCursor( Sys_DisplayToUse() );
 }
 
 void Sys_LockMouseInInputRect(CGRect rect) {
@@ -488,22 +503,16 @@ void Sys_LockMouseInInputRect(CGRect rect) {
 void Sys_SetMouseInputRect(CGRect newRect) {
     inputRectValid = YES;
     inputRect = newRect;
-
-    if ( mouseActive ) {
-        Sys_LockMouseInInputRect( inputRect );
-	}
 }
 
 void IN_ActivateMouse( void ) {
     if ( mouseActive ) {
         return;
     }
-    if ( inputRectValid ) {
-        // Make sure that if window moved we don't hose the user...
-        Sys_UpdateWindowMouseInputRect();
-    }
+
+    Sys_UpdateWindowMouseInputRect();
+    Sys_SetMouseInputRect( inputRect );
     Sys_LockMouseInInputRect( inputRect );
-    CGDisplayHideCursor( Sys_DisplayToUse() );
     mouseActive = true;
 }
 

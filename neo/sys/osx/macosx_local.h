@@ -20,3 +20,12 @@ void * wglGetProcAddress(const char *name);
 void	Sleep( const int time );
 
 void	Sys_UpdateWindowMouseInputRect( void );
+
+unsigned long Sys_QueryVideoMemory( void );
+
+/* these functions are used by the event system when the "exit key (command) is
+   pressed */
+
+void    Sys_DefaultWindowLevel( void );
+
+void    Sys_ReduceWindowLevel( void );
